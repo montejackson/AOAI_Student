@@ -22,27 +22,27 @@ IConfiguration config = webHostBuilder.Configuration;
 
 AuthenticationResult authResult = null;
 // Uncomment this code block to add authentication to the Logic App for CHALLENGE 4
-/*
+
 string ClientId = config["LOGIC_APP_CLIENT_ID"]!;
-    string TenantId = config["TENANT_ID"]!;
-    string Scope = config["LOGIC_APP_SCOPE"]!;
-    string Authority = $"https://login.microsoftonline.com/{TenantId}";
-    string[] Scopes = { Scope };
+string TenantId = config["TENANT_ID"]!;
+string Scope = config["LOGIC_APP_SCOPE"]!;
+string Authority = $"https://login.microsoftonline.com/{TenantId}";
+string[] Scopes = { Scope };
 
-    var publicClient = PublicClientApplicationBuilder.Create(ClientId)
-                .WithAuthority(Authority)
-                .WithDefaultRedirectUri() // Uses http://localhost for a console app
-                .Build();
+var publicClient = PublicClientApplicationBuilder.Create(ClientId)
+            .WithAuthority(Authority)
+            .WithDefaultRedirectUri() // Uses http://localhost for a console app
+            .Build();
 
-    try
-    {
-        authResult = await publicClient.AcquireTokenInteractive(Scopes).WithPrompt(Prompt.SelectAccount).ExecuteAsync();
-    }
-    catch (MsalException ex)
-    {
-        Console.WriteLine("An error occurred acquiring the token: " + ex.Message);
-    }
-*/
+try
+{
+    authResult = await publicClient.AcquireTokenInteractive(Scopes).WithPrompt(Prompt.SelectAccount).ExecuteAsync();
+}
+catch (MsalException ex)
+{
+    Console.WriteLine("An error occurred acquiring the token: " + ex.Message);
+}
+
 
 //Configure Semantic Kernel
 var kernelBuilder = Kernel.CreateBuilder();
@@ -138,5 +138,23 @@ static async Task<bool> AddPlugins(IConfiguration config, Kernel kernel, Authent
     kernel.Plugins.AddFromObject(new TimePlugin(), "TimePlugin");
     kernel.Plugins.AddFromObject(new GeocodingPlugin(kernel.Services.GetRequiredService<IHttpClientFactory>(), config), "GeocodingPlugin");
     kernel.Plugins.AddFromObject(new WeatherPlugin(kernel.Services.GetRequiredService<IHttpClientFactory>()), "WeatherPlugin");
+    await kernel.ImportPluginFromOpenApiAsync(
+    pluginName: "workitems",
+    uri: new Uri("https://lg-01.azurewebsites.net/swagger.json"),
+    executionParameters: new OpenApiFunctionExecutionParameters()
+    {
+        // Determines whether payload parameter names are augmented with namespaces.
+        // Namespaces prevent naming conflicts by adding the parent parameter name
+        // as a prefix, separated by dots
+        HttpClient = new HttpClient()
+        {
+            DefaultRequestHeaders =
+            {
+                Authorization  = new AuthenticationHeaderValue("Bearer", authResult.AccessToken)
+            }
+        }
+        //EnablePayloadNamespacing = true
+    }
+);
     return true;
 }
