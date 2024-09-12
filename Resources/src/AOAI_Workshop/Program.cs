@@ -53,7 +53,8 @@ kernelBuilder.AddAzureOpenAIChatCompletion(
     config["AOI_ENDPOINT"]!,
     config["AOI_API_KEY"]!);
 kernelBuilder.Services.AddHttpClient();
-kernelBuilder.Services.AddLogging(builder => {
+kernelBuilder.Services.AddLogging(builder =>
+{
     builder.AddConfiguration(config.GetSection("Logging"));
     builder.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Debug);
     builder.AddConsole();
@@ -67,16 +68,17 @@ webHostBuilder.Services.AddSingleton<Kernel>(kernel);
 
 //Challenge 3: Add Plugins to Semantic Kernel
 await AddPlugins(config, kernel, authResult);
-
 var app = webHostBuilder.Build();
 
 
-app.UseStaticFiles(new StaticFileOptions {
+app.UseStaticFiles(new StaticFileOptions
+{
     FileProvider = new PhysicalFileProvider(Path.Combine(Directory.GetCurrentDirectory(), "html")),
     RequestPath = "/content"
 });
 
-app.MapGet("/", () => {
+app.MapGet("/", () =>
+{
     var filePath = Path.Combine(Directory.GetCurrentDirectory(), "html", "index.html");
     var fileContent = File.ReadAllText(filePath);
     return Results.Text(fileContent, "text/html");
@@ -85,29 +87,33 @@ app.MapGet("/", () => {
 app.MapPost("/chat", async (
     HttpContext context,
     [FromBody] ChatRequest chatRequest,
-    [FromServices] Kernel kernel) => {
+    [FromServices] Kernel kernel) =>
+{
 
 
-        //Convert chat history from client to Semantic Kernel ChatHistory collection
-        var chatHistory = ExtractHistory(chatRequest);
+    //Convert chat history from client to Semantic Kernel ChatHistory collection
+    var chatHistory = ExtractHistory(chatRequest);
 
- 
-        //Challenge 2: add current prompt to chatHistory
-        chatHistory.AddUserMessage(chatRequest.Prompt);
- 
-        //Challenge 2: Get the chat completion service from Semantic Kernel
-        var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
-        
 
-        //Challenge 3: Configure the execution settings for the OpenAI chat completion
-    
-        //Challenge 2: Get the response from the AI
-     ChatMessageContent response = await chatCompletionService.GetChatMessageContentAsync(chatHistory, kernel: kernel);
+    //Challenge 2: add current prompt to chatHistory
+    chatHistory.AddUserMessage(chatRequest.Prompt);
 
-        //Challenge 2: return a JSON response that has a single property 'response' with a value containing the response from the LLM
-        //ie: new { response = response.Content }
-        return Results.Json(new { response = response.Content });
-    });
+    //Challenge 2: Get the chat completion service from Semantic Kernel
+    var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
+
+
+    //Challenge 3: Configure the execution settings for the OpenAI chat completion
+    OpenAIPromptExecutionSettings openAIPromptExecutionSettings = new()
+    {
+        ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions
+    };
+    //Challenge 2: Get the response from the AI
+    ChatMessageContent response = await chatCompletionService.GetChatMessageContentAsync(chatHistory, executionSettings: openAIPromptExecutionSettings, kernel: kernel);
+
+    //Challenge 2: return a JSON response that has a single property 'response' with a value containing the response from the LLM
+    //ie: new { response = response.Content }
+    return Results.Json(new { response = response.Content });
+});
 
 app.Run();
 
@@ -115,7 +121,8 @@ app.Run();
 static ChatHistory ExtractHistory(ChatRequest chatRequest)
 {
     var chatHistory = new ChatHistory();
-    foreach (var history in chatRequest.History) {
+    foreach (var history in chatRequest.History)
+    {
         if (history.Role == "user")
             chatHistory.AddUserMessage(history.Content);
         else
@@ -128,7 +135,8 @@ static ChatHistory ExtractHistory(ChatRequest chatRequest)
 
 static async Task<bool> AddPlugins(IConfiguration config, Kernel kernel, AuthenticationResult? authResult)
 {
-
-
+    kernel.Plugins.AddFromObject(new TimePlugin(), "TimePlugin");
+    kernel.Plugins.AddFromObject(new GeocodingPlugin(kernel.Services.GetRequiredService<IHttpClientFactory>(), config), "GeocodingPlugin");
+    kernel.Plugins.AddFromObject(new WeatherPlugin(kernel.Services.GetRequiredService<IHttpClientFactory>()), "WeatherPlugin");
     return true;
 }
