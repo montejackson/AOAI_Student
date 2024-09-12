@@ -91,18 +91,22 @@ app.MapPost("/chat", async (
         //Convert chat history from client to Semantic Kernel ChatHistory collection
         var chatHistory = ExtractHistory(chatRequest);
 
+ 
         //Challenge 2: add current prompt to chatHistory
-
-
+        chatHistory.AddUserMessage(chatRequest.Prompt);
+ 
         //Challenge 2: Get the chat completion service from Semantic Kernel
+        var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
+        
 
         //Challenge 3: Configure the execution settings for the OpenAI chat completion
-
+    
         //Challenge 2: Get the response from the AI
-
+     ChatMessageContent response = await chatCompletionService.GetChatMessageContentAsync(chatHistory, kernel: kernel);
 
         //Challenge 2: return a JSON response that has a single property 'response' with a value containing the response from the LLM
         //ie: new { response = response.Content }
+        return Results.Json(new { response = response.Content });
     });
 
 app.Run();
